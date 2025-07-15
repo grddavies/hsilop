@@ -22,6 +22,3 @@ clean:
 
 # Include dependency files
 -include $(DEPS)
-
-# Include this Makefile as a dependency of all outputs
-.EXTRA_PREREQS:= $(abspath $(lastword $(MAKEFILE_LIST)))
