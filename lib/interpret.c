@@ -18,12 +18,80 @@ typedef struct {
   char *doc;      /* Documentation for this function.  */
 } COMMAND;
 
+COMMAND commands[];
+
+typedef int (*BuiltinFunction)(Stack *stack);
+
+typedef struct {
+  char *name;
+  BuiltinFunction func;
+  char *doc;
+} BUILTIN;
+
+static int builtin_peek(Stack *stack) {
+  stack_peek(stack);
+  return 0;
+}
+
+static int builtin_pop(Stack *stack) {
+  double value = stack_pop(stack);
+  printf("%.6g\n", value);
+  return 0;
+}
+
+// Add the built-ins array
+BUILTIN builtins[] = {
+    {"peek", builtin_peek,
+     "Display the top value on the stack without removing it"},
+    {"pop", builtin_pop, "Remove and display the top value from the stack"},
+    {NULL, NULL, NULL} /* end marker */
+};
+
+// Add a generator function for built-ins
+char *builtin_generator(const char *text, int state) {
+  static int list_index, len;
+  char *name;
+
+  if (!state) {
+    list_index = 0;
+    len = strlen(text);
+  }
+
+  while ((name = builtins[list_index].name)) {
+    list_index++;
+
+    if (strncmp(name, text, len) == 0) {
+      return (strdup(name));
+    }
+  }
+
+  return (char *)NULL;
+}
+
 static int com_quit(const char *arg, int _) {
   DONE = 1;
   return (0);
 }
 
+static int com_help(const char *arg, int _) {
+  register int i;
+
+  printf("Available commands:\n");
+  printf("\nREPL Commands:\n");
+  for (i = 0; commands[i].name; i++) {
+    printf("  %-10s %s\n", commands[i].name, commands[i].doc);
+  }
+
+  printf("\nCalculator Commands:\n");
+  for (i = 0; builtins[i].name; i++) {
+    printf("  %-10s %s\n", builtins[i].name, builtins[i].doc);
+  }
+
+  return (0);
+}
+
 COMMAND commands[] = {{":quit", com_quit, "Quit REPL"},
+                      {":help", com_help, "Show available REPL commands"},
                       {NULL, NULL, NULL} /* end marker */};
 
 static int try_parse_double(char *token, double *ptr) {
@@ -59,6 +127,16 @@ static COMMAND *find_command(char *name) {
       return (&commands[i]);
 
   return ((COMMAND *)NULL);
+}
+
+static BUILTIN *find_builtin(char *name) {
+  register int i;
+
+  for (i = 0; builtins[i].name; i++)
+    if (strcmp(name, builtins[i].name) == 0)
+      return (&builtins[i]);
+
+  return ((BUILTIN *)NULL);
 }
 
 static int exec_interactive_cmd(char *line) {
@@ -113,6 +191,12 @@ static void exec(char *token, Stack *stack) {
     // not number-like: parse as operator
     break;
   }
+  }
+
+  BUILTIN *builtin = find_builtin(token);
+  if (builtin) {
+    builtin->func(stack);
+    return;
   }
 
   if (strlen(token) != 1) {
@@ -185,8 +269,10 @@ char **hsilop_completion(const char *text, int start, int end) {
   matches = (char **)NULL;
 
   // if word is at start of the line it is a command completion
-  if (start == 0) {
+  if (start == 0 && text[0] == ':') {
     matches = rl_completion_matches(text, command_generator);
+  } else {
+    matches = rl_completion_matches(text, builtin_generator);
   }
 
   // We don't want default filename completion if not a command
@@ -215,6 +301,7 @@ void interpret(char *line, Stack *stack, bool interactive) {
       exec_line(line, stack);
       // Auto print the top of the stack in interactive mode
       if (interactive) {
+        fputs("=> ", stdout);
         stack_peek(stack);
       }
     }
