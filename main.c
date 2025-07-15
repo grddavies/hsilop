@@ -9,8 +9,10 @@
 #include "lib/interpret.h"
 #include "lib/stack.h"
 
+size_t MAX_LINE_LENGTH = 256;
+
 int main() {
-  char line[256];
+  char line[MAX_LINE_LENGTH];
   Stack *stack = stack_new();
 
   bool interactive = isatty(STDIN_FILENO);
