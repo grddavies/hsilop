@@ -59,15 +59,36 @@ static void op_mul(Stack *stack) {
   stack_push(stack, x * y);
 }
 
+static int try_parse_double(char *token, double *ptr) {
+  char *p = token;
+  *ptr = strtod(token, &p);
+  if (p == token) {
+    return -1;
+  }
+
+  if (*p != '\0') {
+    return 1;
+  }
+
+  return 0;
+}
+
 static void exec(char *token, Stack *stack) {
-  if (isdigit(*token)) {
-    char *p = token;
-    double x = strtod(token, &p);
-    if (p == token || *p != '\0') {
-      fprintf(stderr, "Invalid number: %s\n", token);
-      return;
-    }
+  double x = 0;
+  switch (try_parse_double(token, &x)) {
+  case 0: {
+    // Success
     return stack_push(stack, x);
+  }
+  case 1: {
+    // Unexpected number
+    fprintf(stderr, "Invalid number: %s\n", token);
+    return;
+  }
+  default: {
+    // non-number-like
+    break;
+  }
   }
 
   if (strlen(token) != 1) {
