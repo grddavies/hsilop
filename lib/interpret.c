@@ -33,10 +33,17 @@ static int builtin_pop(Stack *stack) {
   return 0;
 }
 
+static int builtin_size(Stack *stack) {
+  double z = stack->top;
+  stack_push(stack, z);
+  return 0;
+}
+
 BUILTIN builtins[] = {
     {"peek", builtin_peek,
      "Display the top value on the stack without removing it"},
     {"pop", builtin_pop, "Remove and display the top value from the stack"},
+    {"size", builtin_size, "Push the current stack size onto the stack"},
     {NULL, NULL, NULL} /* end marker */
 };
 
