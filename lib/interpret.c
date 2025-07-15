@@ -10,15 +10,9 @@
 #include "operators.h"
 #include "stack.h"
 
-bool DONE = false;
-
-typedef struct {
-  char *name;     /* User printable name of the function. */
-  Function *func; /* Function to call to do the job. */
-  char *doc;      /* Documentation for this function.  */
-} COMMAND;
-
-COMMAND commands[];
+/**
+ * BUILTINS
+ */
 
 typedef int (*BuiltinFunction)(Stack *stack);
 
@@ -39,7 +33,6 @@ static int builtin_pop(Stack *stack) {
   return 0;
 }
 
-// Add the built-ins array
 BUILTIN builtins[] = {
     {"peek", builtin_peek,
      "Display the top value on the stack without removing it"},
@@ -47,7 +40,34 @@ BUILTIN builtins[] = {
     {NULL, NULL, NULL} /* end marker */
 };
 
-// Add a generator function for built-ins
+/**
+ * @brief Finds a builtin by name.
+ *
+ * Searches through the builtins array to find a builtin with the specified
+ * name.
+ *
+ * @param name The name of the builtin to search for
+ * @return Pointer to the BUILTIN structure if found, NULL otherwise
+ */
+static BUILTIN *find_builtin(char *name) {
+  register int i;
+
+  for (i = 0; builtins[i].name; i++)
+    if (strcmp(name, builtins[i].name) == 0 && builtins[i].func != NULL) {
+      return &builtins[i];
+    }
+
+  return (BUILTIN *)NULL;
+}
+
+/**
+ * @brief Generator function for builtin completion.
+ * @param text The text to complete
+ * @param state Lets us know whether to start from scratch; without any state
+ * (i.e. STATE == 0), then we start at the top of the list
+ * @return The next name which partially matches from the builtin list, or NULL
+ * if no names matched
+ */
 char *builtin_generator(const char *text, int state) {
   static int list_index, len;
   char *name;
@@ -68,6 +88,23 @@ char *builtin_generator(const char *text, int state) {
   return (char *)NULL;
 }
 
+/**
+ * COMMANDS
+ */
+
+/**
+ * If true, REPL terminates
+ */
+bool DONE = false;
+
+typedef struct {
+  char *name;     /* User printable name of the function. */
+  Function *func; /* Function to call to do the job. */
+  char *doc;      /* Documentation for this function.  */
+} COMMAND;
+
+COMMAND commands[];
+
 static int com_quit(const char *arg, int _) {
   DONE = 1;
   return (0);
@@ -83,6 +120,7 @@ static int com_help(const char *arg, int _) {
   }
 
   printf("\nCalculator Commands:\n");
+  printf("  %-10s %s\n", "<number>", "Push a number onto the stack");
   for (i = 0; builtins[i].name; i++) {
     printf("  %-10s %s\n", builtins[i].name, builtins[i].doc);
   }
@@ -93,6 +131,59 @@ static int com_help(const char *arg, int _) {
 COMMAND commands[] = {{":quit", com_quit, "Quit REPL"},
                       {":help", com_help, "Show available REPL commands"},
                       {NULL, NULL, NULL} /* end marker */};
+
+/**
+ * @brief Finds a command by name.
+ *
+ * Searches through the commands array to find a command with the specified
+ * name.
+ *
+ * @param name The name of the command to search for
+ * @return Pointer to the COMMAND structure if found, NULL otherwise
+ */
+static COMMAND *find_command(char *name) {
+  register int i;
+
+  for (i = 0; commands[i].name; i++)
+    if (strcmp(name, commands[i].name) == 0) {
+      return &commands[i];
+    }
+
+  return (COMMAND *)NULL;
+}
+
+/**
+ * @brief Generator function for REPL command completion.
+ * @param text The text to complete
+ * @param state Lets us know whether to start from scratch; without any state
+ * (i.e. STATE == 0), then we start at the top of the list
+ * @return The next name which partially matches from the command list, or NULL
+ * if no names matched
+ */
+char *command_generator(const char *text, int state) {
+  static int list_index, len;
+  char *name;
+
+  /* If this is a new word to complete, initialize now.  This includes
+     saving the length of TEXT for efficiency, and initializing the index
+     variable to 0. */
+  if (!state) {
+    list_index = 0;
+    len = strlen(text);
+  }
+
+  /* Return the next name which partially matches from the command list. */
+  while ((name = commands[list_index].name)) {
+    list_index++;
+
+    if (strncmp(name, text, len) == 0) {
+      return (strdup(name));
+    }
+  }
+
+  /* If no names matched, then return NULL. */
+  return (char *)NULL;
+}
 
 static int try_parse_double(char *token, double *ptr) {
   char *p = token;
@@ -109,35 +200,6 @@ static int try_parse_double(char *token, double *ptr) {
 }
 
 static bool is_whitespace(char c) { return isspace(c); }
-
-/**
- * @brief Finds a command by name.
- *
- * Searches through the commands array to find a command with the specified
- * name.
- *
- * @param name The name of the command to search for
- * @return Pointer to the COMMAND structure if found, NULL otherwise
- */
-static COMMAND *find_command(char *name) {
-  register int i;
-
-  for (i = 0; commands[i].name; i++)
-    if (strcmp(name, commands[i].name) == 0)
-      return (&commands[i]);
-
-  return ((COMMAND *)NULL);
-}
-
-static BUILTIN *find_builtin(char *name) {
-  register int i;
-
-  for (i = 0; builtins[i].name; i++)
-    if (strcmp(name, builtins[i].name) == 0)
-      return (&builtins[i]);
-
-  return ((BUILTIN *)NULL);
-}
 
 static int exec_interactive_cmd(char *line) {
   int i;
@@ -199,27 +261,24 @@ static void exec(char *token, Stack *stack) {
     return;
   }
 
-  if (strlen(token) != 1) {
-    fprintf(stderr, "Invalid operator: %s\n", token);
-    return;
+  if (strlen(token) == 1) {
+    switch (*token) {
+    case '+':
+      op_add(stack);
+      return;
+    case '-':
+      op_sub(stack);
+      return;
+    case '/':
+      op_div(stack);
+      return;
+    case '*':
+      op_mul(stack);
+      return;
+    }
   }
 
-  switch (*token) {
-  case '+':
-    op_add(stack);
-    break;
-  case '-':
-    op_sub(stack);
-    break;
-  case '/':
-    op_div(stack);
-    break;
-  case '*':
-    op_mul(stack);
-    break;
-  default:
-    fprintf(stderr, "Invalid operator: %s\n", token);
-  }
+  fprintf(stderr, "Invalid operator: %s\n", token);
 }
 
 static void exec_line(char *line, Stack *stack) {
@@ -228,39 +287,6 @@ static void exec_line(char *line, Stack *stack) {
     exec(token, stack);
     token = strtok(NULL, " ");
   }
-}
-
-/**
- * @brief Generator function for command completion.
- * @param text The text to complete
- * @param state Lets us know whether to start from scratch; without any state
- * (i.e. STATE == 0), then we start at the top of the list
- * @return The next name which partially matches from the command list, or NULL
- * if no names matched
- */
-char *command_generator(const char *text, int state) {
-  static int list_index, len;
-  char *name;
-
-  /* If this is a new word to complete, initialize now.  This includes
-     saving the length of TEXT for efficiency, and initializing the index
-     variable to 0. */
-  if (!state) {
-    list_index = 0;
-    len = strlen(text);
-  }
-
-  /* Return the next name which partially matches from the command list. */
-  while ((name = commands[list_index].name)) {
-    list_index++;
-
-    if (strncmp(name, text, len) == 0) {
-      return (strdup(name));
-    }
-  }
-
-  /* If no names matched, then return NULL. */
-  return (char *)NULL;
 }
 
 char **hsilop_completion(const char *text, int start, int end) {
@@ -289,19 +315,21 @@ static void initialize_readline() {
 void interpret(char *line, Stack *stack, bool interactive) {
   initialize_readline();
   if (interactive) {
-    printf("RPN Calculator (type ':quit' to exit)\n");
+    printf("RPN Calculator (type ':quit' to exit, ':help' for info)\n");
   }
   char *prompt = "> ";
   while (!DONE && (line = readline(prompt))) {
-    if (interactive && *line == ':') {
+    if (interactive && line[0] == ':') {
       exec_interactive_cmd(line);
       add_history(line);
       continue;
     } else {
       exec_line(line, stack);
-      // Auto print the top of the stack in interactive mode
+      // Auto-print the top of the stack in interactive mode
       if (interactive) {
-        fputs("=> ", stdout);
+        if (!stack_empty(stack)) {
+          fputs("=> ", stdout);
+        }
         stack_peek(stack);
       }
     }

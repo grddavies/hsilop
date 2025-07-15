@@ -25,7 +25,7 @@ double stack_pop(Stack *stack) {
 
 void stack_peek(Stack *stack) {
   if (stack_empty(stack)) {
-    fprintf(stderr, "No result (stack empty)\n");
+    fprintf(stderr, "(stack empty)\n");
   } else {
     printf("%g\n", stack->data[stack->top - 1]);
   }
