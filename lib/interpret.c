@@ -3,6 +3,7 @@
 
 #include <readline/history.h>
 #include <readline/readline.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -22,9 +23,8 @@ static int com_quit(const char *arg, int _) {
   return (0);
 }
 
-COMMAND commands[] = {
-    {":quit", com_quit, "Quit REPL"},
-};
+COMMAND commands[] = {{":quit", com_quit, "Quit REPL"},
+                      {NULL, NULL, NULL} /* end marker */};
 
 static int try_parse_double(char *token, double *ptr) {
   char *p = token;
@@ -92,7 +92,7 @@ static int exec_interactive_cmd(char *line) {
 
   word = line + i;
 
-  /* Call the function. */
+  // Note integer second arg is not used
   return ((*(command->func))(word, 0));
 }
 
@@ -146,7 +146,62 @@ static void exec_line(char *line, Stack *stack) {
   }
 }
 
+/**
+ * @brief Generator function for command completion.
+ * @param text The text to complete
+ * @param state Lets us know whether to start from scratch; without any state
+ * (i.e. STATE == 0), then we start at the top of the list
+ * @return The next name which partially matches from the command list, or NULL
+ * if no names matched
+ */
+char *command_generator(const char *text, int state) {
+  static int list_index, len;
+  char *name;
+
+  /* If this is a new word to complete, initialize now.  This includes
+     saving the length of TEXT for efficiency, and initializing the index
+     variable to 0. */
+  if (!state) {
+    list_index = 0;
+    len = strlen(text);
+  }
+
+  /* Return the next name which partially matches from the command list. */
+  while ((name = commands[list_index].name)) {
+    list_index++;
+
+    if (strncmp(name, text, len) == 0) {
+      return (strdup(name));
+    }
+  }
+
+  /* If no names matched, then return NULL. */
+  return (char *)NULL;
+}
+
+char **hsilop_completion(const char *text, int start, int end) {
+  char **matches;
+
+  matches = (char **)NULL;
+
+  // if word is at start of the line it is a command completion
+  if (start == 0) {
+    matches = rl_completion_matches(text, command_generator);
+  }
+
+  // We don't want default filename completion if not a command
+  rl_attempted_completion_over = 1;
+
+  return (matches);
+}
+
+static void initialize_readline() {
+  rl_readline_name = "hsilop";
+  rl_attempted_completion_function = hsilop_completion;
+}
+
 void interpret(char *line, Stack *stack, bool interactive) {
+  initialize_readline();
   if (interactive) {
     printf("RPN Calculator (type ':quit' to exit)\n");
   }
@@ -154,16 +209,18 @@ void interpret(char *line, Stack *stack, bool interactive) {
   while (!DONE && (line = readline(prompt))) {
     if (interactive && *line == ':') {
       exec_interactive_cmd(line);
+      add_history(line);
       continue;
+    } else {
+      exec_line(line, stack);
+      // Auto print the top of the stack in interactive mode
+      if (interactive) {
+        stack_peek(stack);
+      }
     }
 
-    exec_line(line, stack);
-
-    // Auto print the top of the stack in interactive mode
-    if (interactive) {
-      stack_peek(stack);
-    }
     add_history(line);
+    free(line);
   }
 
   if (!interactive) {
