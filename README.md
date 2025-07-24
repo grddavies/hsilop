@@ -27,3 +27,5 @@ Or use in interactive mode, with basic readline support:
 ```sh
 ./build/main
 ```
+
+[![asciicast](https://asciinema.org/a/PSWgTm5jrT9vxCPENHFm0LYzA.svg)](https://asciinema.org/a/PSWgTm5jrT9vxCPENHFm0LYzA)
